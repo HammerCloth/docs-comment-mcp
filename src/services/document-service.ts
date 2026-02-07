@@ -27,6 +27,7 @@ import {
   validateFileWritable,
 } from '../utils/validation.js';
 import { handleFileError, handleDocxError } from '../utils/error-handler.js';
+import { calculateWordDiff, DiffOperation } from '../utils/text-diff.js';
 
 export class DocumentService {
   /**
@@ -574,39 +575,125 @@ export class DocumentService {
   }
 
   /**
-   * Replace text with track changes (delete old + insert new)
+   * Replace text with track changes using word-level diff
    */
-  async replaceText(input: ReplaceTextInput): Promise<{ delete: Revision; insert: Revision }> {
-    const { file_path, paragraph_index, old_text, new_text, author, date } = input;
-
-    // Delete old text
-    const deleteRevision = await this.deleteText({
+  async replaceText(input: ReplaceTextInput): Promise<Revision[]> {
+    const {
       file_path,
       paragraph_index,
-      text: old_text,
-      author,
-      date,
-    });
+      old_text,
+      new_text,
+      author = 'AI Assistant',
+      date = new Date().toISOString(),
+    } = input;
 
-    // Insert new text
-    const insertRevision = await this.insertText({
-      file_path,
-      paragraph_index,
-      text: new_text,
-      author,
-      date,
-    });
+    validateFilePath(file_path);
+    validateFileExtension(file_path);
+    validateFileWritable(file_path);
 
-    return {
-      delete: deleteRevision,
-      insert: insertRevision,
-    };
+    try {
+      const docInfo = await this.getDocumentInfo(file_path);
+      validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
+
+      // Calculate word-level diff
+      const diffOps = calculateWordDiff(old_text, new_text);
+
+      const zip = await this.loadDocxZip(file_path);
+      const documentXml = await zip.file('word/document.xml')!.async('string');
+      const doc = await this.parseXml(documentXml);
+
+      const body = doc['w:document']['w:body'];
+      const wParagraphs = Array.isArray(body['w:p']) ? body['w:p'] : [body['w:p']];
+      const targetParagraph = wParagraphs[paragraph_index];
+
+      if (!targetParagraph) {
+        throw new DocumentError(`Paragraph ${paragraph_index} not found`, 'PARAGRAPH_NOT_FOUND');
+      }
+
+      // Clear existing runs and rebuild with diff operations
+      const newRuns: any[] = [];
+      const revisions: Revision[] = [];
+
+      for (const op of diffOps) {
+        const revisionIdNum = Date.now() % 1000000 + newRuns.length;
+
+        if (op.type === 'equal') {
+          // Keep unchanged text
+          newRuns.push({
+            'w:r': {
+              'w:t': op.text,
+            },
+          });
+        } else if (op.type === 'delete') {
+          // Mark as deletion
+          newRuns.push({
+            'w:del': {
+              $: {
+                'w:id': revisionIdNum.toString(),
+                'w:author': author,
+                'w:date': date,
+              },
+              'w:r': {
+                'w:delText': op.text,
+              },
+            },
+          });
+
+          revisions.push({
+            revision_id: revisionIdNum.toString(),
+            revision_type: 'delete',
+            paragraph_index,
+            text: op.text,
+            author,
+            date,
+          });
+        } else if (op.type === 'insert') {
+          // Mark as insertion
+          newRuns.push({
+            'w:ins': {
+              $: {
+                'w:id': revisionIdNum.toString(),
+                'w:author': author,
+                'w:date': date,
+              },
+              'w:r': {
+                'w:t': op.text,
+              },
+            },
+          });
+
+          revisions.push({
+            revision_id: revisionIdNum.toString(),
+            revision_type: 'insert',
+            paragraph_index,
+            text: op.text,
+            author,
+            date,
+          });
+        }
+      }
+
+      // Replace paragraph runs
+      targetParagraph['w:r'] = newRuns;
+
+      // Save modified document
+      const modifiedDocXml = this.buildXml(doc);
+      zip.file('word/document.xml', modifiedDocXml);
+      await this.saveDocxZip(zip, file_path);
+
+      return revisions;
+    } catch (error) {
+      if (error instanceof DocumentError) {
+        throw error;
+      }
+      handleDocxError(error);
+    }
   }
 
   /**
-   * Modify entire paragraph with track changes
+   * Modify entire paragraph with track changes using word-level diff
    */
-  async modifyParagraph(input: ModifyParagraphInput): Promise<{ delete: Revision; insert: Revision }> {
+  async modifyParagraph(input: ModifyParagraphInput): Promise<Revision[]> {
     const {
       file_path,
       paragraph_index,
@@ -625,28 +712,15 @@ export class DocumentService {
 
       const oldText = docInfo.paragraphs[paragraph_index].text;
 
-      // Delete old paragraph content
-      const deleteRevision = await this.deleteText({
+      // Use replaceText with word-level diff
+      return await this.replaceText({
         file_path,
         paragraph_index,
-        text: oldText,
+        old_text: oldText,
+        new_text,
         author,
         date,
       });
-
-      // Insert new paragraph content
-      const insertRevision = await this.insertText({
-        file_path,
-        paragraph_index,
-        text: new_text,
-        author,
-        date,
-      });
-
-      return {
-        delete: deleteRevision,
-        insert: insertRevision,
-      };
     } catch (error) {
       if (error instanceof DocumentError) {
         throw error;
