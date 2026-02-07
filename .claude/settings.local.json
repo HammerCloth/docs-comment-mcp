@@ -4,7 +4,14 @@
       "Bash(curl:*)",
       "Bash(chmod:*)",
       "Bash(node -e \"const p=require\\(''path''\\).join\\(require\\(''os''\\).homedir\\(\\),''.claude'',''hud'',''omc-hud.mjs''\\);console.log\\(JSON.stringify\\(p\\)\\)\")",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(git commit:*)",
+      "Bash(brew install:*)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(npm install)",
+      "Bash(test:*)",
+      "Bash(npm install:*)"
     ]
   }
 }
