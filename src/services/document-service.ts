@@ -103,7 +103,16 @@ export class DocumentService {
           const runArray = Array.isArray(runs) ? runs : [runs];
           runArray.forEach((run: any) => {
             if (run && run['w:t']) {
-              text += run['w:t'];
+              // Handle both string and object cases
+              const textContent = run['w:t'];
+              if (typeof textContent === 'string') {
+                text += textContent;
+              } else if (typeof textContent === 'object' && textContent._) {
+                text += textContent._;
+              } else if (typeof textContent === 'object') {
+                // If it's still an object, try to stringify it
+                text += String(textContent);
+              }
             }
           });
         }
@@ -353,7 +362,13 @@ export class DocumentService {
               const runs = Array.isArray(p['w:r']) ? p['w:r'] : [p['w:r']];
               runs.forEach((r: any) => {
                 if (r['w:t']) {
-                  text += r['w:t'];
+                  // Handle both string and object cases
+                  const textContent = r['w:t'];
+                  if (typeof textContent === 'string') {
+                    text += textContent;
+                  } else if (typeof textContent === 'object' && textContent._) {
+                    text += textContent._;
+                  }
                 }
               });
             }
