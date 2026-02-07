@@ -1,0 +1,43 @@
+# Source files
+src/
+tests/
+*.ts
+!*.d.ts
+
+# Config files
+tsconfig.json
+.eslintrc.*
+.prettierrc.*
+jest.config.*
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Documentation (keep only README and LICENSE)
+DEPLOYMENT.md
+TECHNICAL_SPEC.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Environment
+.env
+.env.*
+
+# OMC and Claude
+.omc/
+.claude/
+
+# Temporary files
+*.tmp
+.cache/

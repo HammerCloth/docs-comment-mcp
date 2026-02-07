@@ -1,28 +1,48 @@
 {
   "name": "docs-comment-mcp",
   "version": "0.1.0",
-  "description": "MCP server for adding comments to Word documents",
+  "description": "MCP server for adding comments and track changes to Word/WPS documents",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "docs-comment-mcp": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "word",
+    "wps",
     "docx",
     "comments",
-    "annotations"
+    "annotations",
+    "track-changes",
+    "revisions",
+    "ai",
+    "claude"
   ],
-  "author": "",
+  "author": "HammerCloth",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HammerCloth/docs-comment-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HammerCloth/docs-comment-mcp/issues"
+  },
+  "homepage": "https://github.com/HammerCloth/docs-comment-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "docx": "^8.5.0",

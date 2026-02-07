@@ -38,7 +38,43 @@ MCP (Model Context Protocol) 服务器，用于让 AI 能够操作 Word/WPS 文�
 - Node.js 18 或更高版本
 - npm 或 yarn
 
-### 从源码安装
+### 方式一：通过 npx 直接使用（推荐）
+
+无需安装，直接在 Claude Desktop 配置中使用：
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "docs-comment": {
+      "command": "npx",
+      "args": ["-y", "docs-comment-mcp"]
+    }
+  }
+}
+```
+
+### 方式二：全局安装
+
+```bash
+npm install -g docs-comment-mcp
+```
+
+配置文件：
+
+```json
+{
+  "mcpServers": {
+    "docs-comment": {
+      "command": "docs-comment-mcp"
+    }
+  }
+}
+```
+
+### 方式三：从源码安装
 
 ```bash
 # 克隆仓库
