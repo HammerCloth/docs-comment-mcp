@@ -11,6 +11,7 @@ import {
 import { readDocument } from './tools/read-document.js';
 import { addComment } from './tools/add-comment.js';
 import { listComments } from './tools/list-comments.js';
+import { deleteComment } from './tools/delete-comment.js';
 import { insertTextTool } from './tools/insert-text.js';
 import { deleteTextTool } from './tools/delete-text.js';
 import { replaceTextTool } from './tools/replace-text.js';
@@ -44,10 +45,11 @@ export class DocsCommentServer {
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
+        // Document Reading Tools
         {
           name: 'read_document',
           description:
-            'Read a .docx file and return its content structure including paragraphs and existing comments',
+            '[Document] Read a .docx file and return its content structure including paragraphs and existing comments',
           inputSchema: {
             type: 'object',
             properties: {
@@ -59,10 +61,11 @@ export class DocsCommentServer {
             required: ['file_path'],
           },
         },
+        // Comment Management Tools
         {
           name: 'add_comment',
           description:
-            'Add a comment to a specific text, word, sentence, or entire paragraph in a .docx document. Supports three modes: 1) Comment on specific text by providing the "text" parameter, 2) Comment on a character range by providing "start_pos" and "end_pos", 3) Comment on entire paragraph (default behavior)',
+            '[Comment] Add a comment to specific text (word or sentence) in a .docx document. REQUIRED: Must specify either "text" parameter OR both "start_pos" and "end_pos" parameters. Cannot comment on entire paragraph.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -80,15 +83,15 @@ export class DocsCommentServer {
               },
               text: {
                 type: 'string',
-                description: 'Optional: Specific text (word or sentence) to comment on. The comment will be attached to this exact text within the paragraph.',
+                description: 'REQUIRED (if start_pos/end_pos not provided): Specific text (word or sentence) to comment on. The comment will be attached to this exact text within the paragraph.',
               },
               start_pos: {
                 type: 'number',
-                description: 'Optional: Start character position (0-based) in the paragraph. Use with end_pos to comment on a specific range.',
+                description: 'REQUIRED (if text not provided): Start character position (0-based) in the paragraph. Must be used together with end_pos.',
               },
               end_pos: {
                 type: 'number',
-                description: 'Optional: End character position (0-based) in the paragraph. Use with start_pos to comment on a specific range.',
+                description: 'REQUIRED (if text not provided): End character position (0-based) in the paragraph. Must be used together with start_pos.',
               },
               author: {
                 type: 'string',
@@ -104,7 +107,7 @@ export class DocsCommentServer {
         },
         {
           name: 'list_comments',
-          description: 'List all comments in a .docx document',
+          description: '[Comment] List all comments in a .docx document',
           inputSchema: {
             type: 'object',
             properties: {
@@ -116,12 +119,55 @@ export class DocsCommentServer {
             required: ['file_path'],
           },
         },
-        insertTextTool,
-        deleteTextTool,
-        replaceTextTool,
-        modifyParagraphTool,
-        listRevisionsTool,
-        suggestRevisionTool,
+        {
+          name: 'delete_comment',
+          description: '[Comment] Delete a comment from a .docx document by its comment ID',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              file_path: {
+                type: 'string',
+                description: 'Absolute path to the .docx file',
+              },
+              comment_id: {
+                type: 'string',
+                description: 'The UUID of the comment to delete (obtained from list_comments)',
+              },
+            },
+            required: ['file_path', 'comment_id'],
+          },
+        },
+        // Track Changes / Revision Tools
+        {
+          name: 'insert_text',
+          description: '[Revision] Insert text into a Word document with track changes (revision mode). The insertion will be marked as a revision that can be accepted or rejected in Word/WPS.',
+          inputSchema: insertTextTool.inputSchema,
+        },
+        {
+          name: 'delete_text',
+          description: '[Revision] Delete text from a Word document with track changes (revision mode). The deletion will be marked as a revision that can be accepted or rejected in Word/WPS.',
+          inputSchema: deleteTextTool.inputSchema,
+        },
+        {
+          name: 'replace_text',
+          description: '[Revision] Replace text in a Word document with track changes (revision mode). The old text will be marked as deleted and new text as inserted, both as revisions that can be accepted or rejected in Word/WPS.',
+          inputSchema: replaceTextTool.inputSchema,
+        },
+        {
+          name: 'modify_paragraph',
+          description: '[Revision] Modify an entire paragraph in a Word document with track changes (revision mode). The old paragraph content will be marked as deleted and new content as inserted, both as revisions that can be accepted or rejected in Word/WPS.',
+          inputSchema: modifyParagraphTool.inputSchema,
+        },
+        {
+          name: 'list_revisions',
+          description: '[Revision] List all tracked changes (revisions) in a Word document. Shows all insertions and deletions that are pending review.',
+          inputSchema: listRevisionsTool.inputSchema,
+        },
+        {
+          name: 'suggest_revision',
+          description: '[Revision] AI suggests a revision for a specific text segment in the document. This tool allows AI to identify what needs to be changed and explain why, mimicking human review process. The actual revision is then applied using replace_text tool.',
+          inputSchema: suggestRevisionTool.inputSchema,
+        },
       ],
     }));
 
@@ -157,6 +203,16 @@ export class DocsCommentServer {
                 {
                   type: 'text',
                   text: JSON.stringify(await listComments(args as any), null, 2),
+                },
+              ],
+            };
+
+          case 'delete_comment':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(await deleteComment(args as any), null, 2),
                 },
               ],
             };

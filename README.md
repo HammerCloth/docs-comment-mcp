@@ -6,10 +6,11 @@ MCP (Model Context Protocol) 服务器，用于让 AI 能够操作 Word/WPS 文�
 
 ### 批注功能
 - ✅ 读取 .docx 文档内容和结构
-- ✅ 在指定段落添加批注
-- ✅ **在特定文本（单词/句子）上添加批注**
+- ✅ **在特定文本（单词/句子）上添加批注（必须指定）**
 - ✅ **在指定字符位置范围添加批注**
 - ✅ 列出文档中的所有批注
+- ✅ **删除指定的批注**
+- ⚠️ **不支持对整个段落添加批注（必须选择具体文本）**
 
 ### 修订模式（Track Changes）
 - ✅ 插入文本（带修订标记）
@@ -143,20 +144,9 @@ Claude: [调用 read_document 工具]
 
 ### 2. 添加批注
 
-#### 2.1 对整个段落添加批注
+**重要提示**：添加批注时必须指定具体的文本或字符位置范围，不能对整个段落添加批注。
 
-```
-User: 在第 3 段添加批注："需要补充数据来源"
-
-Claude: [调用 add_comment 工具]
-已成功添加批注：
-- 批注 ID: c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o
-- 位置：第 3 段
-- 内容：需要补充数据来源
-- 作者：AI Assistant
-```
-
-#### 2.2 对特定文字添加批注（新功能）
+#### 2.1 对特定文字添加批注
 
 ```
 User: 在第 2 段的 "重要数据" 这几个字上添加批注："需要核实准确性"
@@ -169,7 +159,7 @@ Claude: [调用 add_comment 工具，指定 text 参数]
 - 作者：AI Assistant
 ```
 
-#### 2.3 对字符位置范围添加批注
+#### 2.2 对字符位置范围添加批注
 
 ```
 User: 在第 1 段的第 10 到 25 个字符位置添加批注："这部分表述不清"
@@ -189,8 +179,19 @@ User: 列出文档中的所有批注
 
 Claude: [调用 list_comments 工具]
 文档包含 2 个批注：
-1. [第 3 段] 需要补充数据来源 (AI Assistant)
-2. [第 5 段] 建议添加引用 (AI Assistant)
+1. [第 3 段] 需要补充数据来源 (AI Assistant) - ID: c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o
+2. [第 5 段] 建议添加引用 (AI Assistant) - ID: d2e3f4g5-h6i7-8j9k-0l1m-2n3o4p5q6r7s
+```
+
+### 4. 删除批注
+
+```
+User: 删除 ID 为 c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o 的批注
+
+Claude: [调用 delete_comment 工具]
+已成功删除批注：
+- 批注 ID: c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o
+- 状态：已从文档中移除
 ```
 
 ### 4. 插入文本（修订模式）
@@ -263,7 +264,9 @@ Claude: [调用 list_revisions 工具]
 
 ## MCP 工具
 
-### 批注工具
+本 MCP 服务器提供以下三类工具：
+
+### 📄 文档读取工具
 
 #### read_document
 
@@ -292,27 +295,27 @@ Claude: [调用 list_revisions 工具]
 }
 ```
 
-### add_comment
+### 💬 评论管理工具
 
-在指定段落或特定文本上添加批注。支持三种模式：
-1. 对整个段落添加批注（默认）
-2. 对段落中的特定文本（单词/句子）添加批注
-3. 对指定字符位置范围添加批注
+#### add_comment
+
+在段落中的特定文本上添加批注。**必须指定具体的文本或字符位置范围**。
 
 **输入参数**:
 - `file_path` (string, 必需): 文件的绝对路径
 - `comment_text` (string, 必需): 批注内容
 - `paragraph_index` (number, 必需): 段落索引（从 0 开始）
-- `text` (string, 可选): 要批注的具体文本（单词或句子）
-- `start_pos` (number, 可选): 字符起始位置（从 0 开始），需与 end_pos 一起使用
-- `end_pos` (number, 可选): 字符结束位置（从 0 开始），需与 start_pos 一起使用
+- `text` (string, 条件必需): 要批注的具体文本（单词或句子）。如果不提供此参数，则必须提供 start_pos 和 end_pos
+- `start_pos` (number, 条件必需): 字符起始位置（从 0 开始）。必须与 end_pos 一起使用
+- `end_pos` (number, 条件必需): 字符结束位置（从 0 开始）。必须与 start_pos 一起使用
 - `author` (string, 可选): 批注作者，默认 "AI Assistant"
 - `initials` (string, 可选): 作者缩写，默认 "AI"
 
 **使用说明**:
-- 如果提供 `text` 参数：在段落中查找该文本并添加批注
+- **必须提供** `text` 参数 **或者** 同时提供 `start_pos` 和 `end_pos` 参数
+- 如果提供 `text`：在段落中查找该文本并添加批注
 - 如果提供 `start_pos` 和 `end_pos`：在指定字符范围添加批注
-- 如果都不提供：对整个段落添加批注
+- **不支持对整个段落添加批注**
 
 **返回**:
 ```json
@@ -357,7 +360,26 @@ Claude: [调用 list_revisions 工具]
 }
 ```
 
-### 修订模式工具
+### delete_comment
+
+删除文档中的指定批注。
+
+**输入参数**:
+- `file_path` (string, 必需): 文件的绝对路径
+- `comment_id` (string, 必需): 要删除的批注 ID（从 list_comments 获取）
+
+**返回**:
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "comment_id": "c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o"
+  }
+}
+```
+
+### ✏️ 修订模式工具（Track Changes）
 
 #### insert_text
 

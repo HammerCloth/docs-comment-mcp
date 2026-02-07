@@ -36,15 +36,20 @@ export interface AddCommentInput {
   file_path: string;
   comment_text: string;
   paragraph_index: number;
-  text?: string; // Optional: specific text to comment on (word or sentence)
-  start_pos?: number; // Optional: start position in paragraph (character index)
-  end_pos?: number; // Optional: end position in paragraph (character index)
+  text?: string; // Specific text to comment on (word or sentence) - either this or position range is required
+  start_pos?: number; // Start position in paragraph (character index) - must be used with end_pos
+  end_pos?: number; // End position in paragraph (character index) - must be used with start_pos
   author?: string;
   initials?: string;
 }
 
 export interface ListCommentsInput {
   file_path: string;
+}
+
+export interface DeleteCommentInput {
+  file_path: string;
+  comment_id: string; // The UUID of the comment to delete
 }
 
 // Revision (Track Changes) related types
