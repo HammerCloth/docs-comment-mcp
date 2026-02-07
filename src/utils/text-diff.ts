@@ -8,6 +8,64 @@ export interface DiffOperation {
 }
 
 /**
+ * Calculate position-based character diff
+ * Compares characters at the same position, preserving unchanged characters
+ * This is the most intuitive diff for document editing
+ */
+export function calculatePositionDiff(oldText: string, newText: string): DiffOperation[] {
+  const operations: DiffOperation[] = [];
+  const maxLen = Math.max(oldText.length, newText.length);
+
+  let i = 0;
+  while (i < maxLen) {
+    const oldChar = i < oldText.length ? oldText[i] : null;
+    const newChar = i < newText.length ? newText[i] : null;
+
+    if (oldChar === newChar && oldChar !== null) {
+      // Same character at same position - keep it
+      if (operations.length > 0 && operations[operations.length - 1].type === 'equal') {
+        operations[operations.length - 1].text += oldChar;
+      } else {
+        operations.push({ type: 'equal', text: oldChar });
+      }
+      i++;
+    } else if (oldChar !== null && newChar !== null) {
+      // Different characters at same position - delete old, insert new
+      if (operations.length > 0 && operations[operations.length - 1].type === 'delete') {
+        operations[operations.length - 1].text += oldChar;
+      } else {
+        operations.push({ type: 'delete', text: oldChar });
+      }
+
+      if (operations.length > 0 && operations[operations.length - 1].type === 'insert') {
+        operations[operations.length - 1].text += newChar;
+      } else {
+        operations.push({ type: 'insert', text: newChar });
+      }
+      i++;
+    } else if (oldChar !== null) {
+      // Old text is longer - delete remaining
+      if (operations.length > 0 && operations[operations.length - 1].type === 'delete') {
+        operations[operations.length - 1].text += oldChar;
+      } else {
+        operations.push({ type: 'delete', text: oldChar });
+      }
+      i++;
+    } else if (newChar !== null) {
+      // New text is longer - insert remaining
+      if (operations.length > 0 && operations[operations.length - 1].type === 'insert') {
+        operations[operations.length - 1].text += newChar;
+      } else {
+        operations.push({ type: 'insert', text: newChar });
+      }
+      i++;
+    }
+  }
+
+  return operations;
+}
+
+/**
  * Calculate character-level diff between two strings
  * Uses a simple but effective algorithm similar to Myers diff
  */

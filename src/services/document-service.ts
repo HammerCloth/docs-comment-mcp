@@ -27,7 +27,7 @@ import {
   validateFileWritable,
 } from '../utils/validation.js';
 import { handleFileError, handleDocxError } from '../utils/error-handler.js';
-import { calculateWordDiff, DiffOperation } from '../utils/text-diff.js';
+import { calculatePositionDiff, DiffOperation } from '../utils/text-diff.js';
 
 export class DocumentService {
   /**
@@ -575,7 +575,7 @@ export class DocumentService {
   }
 
   /**
-   * Replace text with track changes using word-level diff
+   * Replace text with track changes using position-based character diff
    */
   async replaceText(input: ReplaceTextInput): Promise<Revision[]> {
     const {
@@ -595,8 +595,8 @@ export class DocumentService {
       const docInfo = await this.getDocumentInfo(file_path);
       validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
 
-      // Calculate word-level diff
-      const diffOps = calculateWordDiff(old_text, new_text);
+      // Calculate position-based character diff
+      const diffOps = calculatePositionDiff(old_text, new_text);
 
       const zip = await this.loadDocxZip(file_path);
       const documentXml = await zip.file('word/document.xml')!.async('string');
@@ -691,7 +691,7 @@ export class DocumentService {
   }
 
   /**
-   * Modify entire paragraph with track changes using word-level diff
+   * Modify entire paragraph with track changes using position-based character diff
    */
   async modifyParagraph(input: ModifyParagraphInput): Promise<Revision[]> {
     const {
@@ -712,7 +712,7 @@ export class DocumentService {
 
       const oldText = docInfo.paragraphs[paragraph_index].text;
 
-      // Use replaceText with word-level diff
+      // Use replaceText with position-based character diff
       return await this.replaceText({
         file_path,
         paragraph_index,
