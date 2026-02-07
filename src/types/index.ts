@@ -44,6 +44,54 @@ export interface ListCommentsInput {
   file_path: string;
 }
 
+// Revision (Track Changes) related types
+export interface Revision {
+  revision_id: string;
+  revision_type: 'insert' | 'delete';
+  paragraph_index: number;
+  text: string;
+  author: string;
+  date: string;
+}
+
+export interface InsertTextInput {
+  file_path: string;
+  paragraph_index: number;
+  text: string;
+  position?: number; // Position in paragraph, default: end
+  author?: string;
+  date?: string;
+}
+
+export interface DeleteTextInput {
+  file_path: string;
+  paragraph_index: number;
+  text: string; // Text to delete (will be matched)
+  author?: string;
+  date?: string;
+}
+
+export interface ReplaceTextInput {
+  file_path: string;
+  paragraph_index: number;
+  old_text: string;
+  new_text: string;
+  author?: string;
+  date?: string;
+}
+
+export interface ModifyParagraphInput {
+  file_path: string;
+  paragraph_index: number;
+  new_text: string;
+  author?: string;
+  date?: string;
+}
+
+export interface ListRevisionsInput {
+  file_path: string;
+}
+
 // Tool response type
 export interface ToolResponse<T> {
   success: boolean;

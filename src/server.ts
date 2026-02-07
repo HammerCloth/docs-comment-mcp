@@ -11,11 +11,19 @@ import {
 import { readDocument } from './tools/read-document.js';
 import { addComment } from './tools/add-comment.js';
 import { listComments } from './tools/list-comments.js';
+import { insertTextTool } from './tools/insert-text.js';
+import { deleteTextTool } from './tools/delete-text.js';
+import { replaceTextTool } from './tools/replace-text.js';
+import { modifyParagraphTool } from './tools/modify-paragraph.js';
+import { listRevisionsTool } from './tools/list-revisions.js';
+import { DocumentService } from './services/document-service.js';
 
 export class DocsCommentServer {
   private server: Server;
+  private documentService: DocumentService;
 
   constructor() {
+    this.documentService = new DocumentService();
     this.server = new Server(
       {
         name: 'docs-comment-mcp',
@@ -95,6 +103,11 @@ export class DocsCommentServer {
             required: ['file_path'],
           },
         },
+        insertTextTool,
+        deleteTextTool,
+        replaceTextTool,
+        modifyParagraphTool,
+        listRevisionsTool,
       ],
     }));
 
@@ -130,6 +143,76 @@ export class DocsCommentServer {
                 {
                   type: 'text',
                   text: JSON.stringify(await listComments(args as any), null, 2),
+                },
+              ],
+            };
+
+          case 'insert_text':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    await this.documentService.insertText(args as any),
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+
+          case 'delete_text':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    await this.documentService.deleteText(args as any),
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+
+          case 'replace_text':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    await this.documentService.replaceText(args as any),
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+
+          case 'modify_paragraph':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    await this.documentService.modifyParagraph(args as any),
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+
+          case 'list_revisions':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    await this.documentService.getRevisions((args as any).file_path),
+                    null,
+                    2
+                  ),
                 },
               ],
             };

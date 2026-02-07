@@ -12,6 +12,11 @@ import {
   DocumentParagraph,
   Comment,
   AddCommentInput,
+  Revision,
+  InsertTextInput,
+  DeleteTextInput,
+  ReplaceTextInput,
+  ModifyParagraphInput,
   DocumentError,
 } from '../types/index.js';
 import {
@@ -384,6 +389,343 @@ export class DocumentService {
           created_at: c.$['w:date'] || new Date().toISOString(),
         };
       });
+    } catch (error) {
+      handleDocxError(error);
+    }
+  }
+
+  /**
+   * Insert text with track changes (revision mode)
+   */
+  async insertText(input: InsertTextInput): Promise<Revision> {
+    const {
+      file_path,
+      paragraph_index,
+      text,
+      position,
+      author = 'AI Assistant',
+      date = new Date().toISOString(),
+    } = input;
+
+    validateFilePath(file_path);
+    validateFileExtension(file_path);
+    validateFileWritable(file_path);
+
+    try {
+      const docInfo = await this.getDocumentInfo(file_path);
+      validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
+
+      const zip = await this.loadDocxZip(file_path);
+      const revision_id = uuidv4();
+      const revisionIdNum = Date.now() % 1000000;
+
+      // Read and modify document.xml
+      const documentXml = await zip.file('word/document.xml')!.async('string');
+      const doc = await this.parseXml(documentXml);
+
+      const body = doc['w:document']['w:body'];
+      const wParagraphs = Array.isArray(body['w:p']) ? body['w:p'] : [body['w:p']];
+      const targetParagraph = wParagraphs[paragraph_index];
+
+      if (!targetParagraph) {
+        throw new DocumentError(`Paragraph ${paragraph_index} not found`, 'PARAGRAPH_NOT_FOUND');
+      }
+
+      // Create insertion run with track changes
+      const insertRun = {
+        'w:ins': {
+          $: {
+            'w:id': revisionIdNum.toString(),
+            'w:author': author,
+            'w:date': date,
+          },
+          'w:r': {
+            'w:t': text,
+          },
+        },
+      };
+
+      // Add to paragraph runs
+      if (!targetParagraph['w:r']) {
+        targetParagraph['w:r'] = [];
+      }
+      const runs = Array.isArray(targetParagraph['w:r']) ? targetParagraph['w:r'] : [targetParagraph['w:r']];
+
+      if (position !== undefined && position < runs.length) {
+        runs.splice(position, 0, insertRun);
+      } else {
+        runs.push(insertRun);
+      }
+      targetParagraph['w:r'] = runs;
+
+      // Save modified document
+      const modifiedDocXml = this.buildXml(doc);
+      zip.file('word/document.xml', modifiedDocXml);
+      await this.saveDocxZip(zip, file_path);
+
+      return {
+        revision_id,
+        revision_type: 'insert',
+        paragraph_index,
+        text,
+        author,
+        date,
+      };
+    } catch (error) {
+      if (error instanceof DocumentError) {
+        throw error;
+      }
+      handleDocxError(error);
+    }
+  }
+
+  /**
+   * Delete text with track changes (revision mode)
+   */
+  async deleteText(input: DeleteTextInput): Promise<Revision> {
+    const {
+      file_path,
+      paragraph_index,
+      text,
+      author = 'AI Assistant',
+      date = new Date().toISOString(),
+    } = input;
+
+    validateFilePath(file_path);
+    validateFileExtension(file_path);
+    validateFileWritable(file_path);
+
+    try {
+      const docInfo = await this.getDocumentInfo(file_path);
+      validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
+
+      const zip = await this.loadDocxZip(file_path);
+      const revision_id = uuidv4();
+      const revisionIdNum = Date.now() % 1000000;
+
+      // Read and modify document.xml
+      const documentXml = await zip.file('word/document.xml')!.async('string');
+      const doc = await this.parseXml(documentXml);
+
+      const body = doc['w:document']['w:body'];
+      const wParagraphs = Array.isArray(body['w:p']) ? body['w:p'] : [body['w:p']];
+      const targetParagraph = wParagraphs[paragraph_index];
+
+      if (!targetParagraph) {
+        throw new DocumentError(`Paragraph ${paragraph_index} not found`, 'PARAGRAPH_NOT_FOUND');
+      }
+
+      // Find and mark text for deletion
+      const runs = targetParagraph['w:r'];
+      if (runs) {
+        const runArray = Array.isArray(runs) ? runs : [runs];
+        let found = false;
+
+        for (let i = 0; i < runArray.length; i++) {
+          const run = runArray[i];
+          if (run && run['w:t']) {
+            const textContent = typeof run['w:t'] === 'string' ? run['w:t'] : run['w:t']._;
+            if (textContent && textContent.includes(text)) {
+              // Replace with deletion markup
+              runArray[i] = {
+                'w:del': {
+                  $: {
+                    'w:id': revisionIdNum.toString(),
+                    'w:author': author,
+                    'w:date': date,
+                  },
+                  'w:r': {
+                    'w:delText': text,
+                  },
+                },
+              };
+              found = true;
+              break;
+            }
+          }
+        }
+
+        if (!found) {
+          throw new DocumentError(`Text "${text}" not found in paragraph ${paragraph_index}`, 'TEXT_NOT_FOUND');
+        }
+
+        targetParagraph['w:r'] = runArray;
+      }
+
+      // Save modified document
+      const modifiedDocXml = this.buildXml(doc);
+      zip.file('word/document.xml', modifiedDocXml);
+      await this.saveDocxZip(zip, file_path);
+
+      return {
+        revision_id,
+        revision_type: 'delete',
+        paragraph_index,
+        text,
+        author,
+        date,
+      };
+    } catch (error) {
+      if (error instanceof DocumentError) {
+        throw error;
+      }
+      handleDocxError(error);
+    }
+  }
+
+  /**
+   * Replace text with track changes (delete old + insert new)
+   */
+  async replaceText(input: ReplaceTextInput): Promise<{ delete: Revision; insert: Revision }> {
+    const { file_path, paragraph_index, old_text, new_text, author, date } = input;
+
+    // Delete old text
+    const deleteRevision = await this.deleteText({
+      file_path,
+      paragraph_index,
+      text: old_text,
+      author,
+      date,
+    });
+
+    // Insert new text
+    const insertRevision = await this.insertText({
+      file_path,
+      paragraph_index,
+      text: new_text,
+      author,
+      date,
+    });
+
+    return {
+      delete: deleteRevision,
+      insert: insertRevision,
+    };
+  }
+
+  /**
+   * Modify entire paragraph with track changes
+   */
+  async modifyParagraph(input: ModifyParagraphInput): Promise<{ delete: Revision; insert: Revision }> {
+    const {
+      file_path,
+      paragraph_index,
+      new_text,
+      author = 'AI Assistant',
+      date = new Date().toISOString(),
+    } = input;
+
+    validateFilePath(file_path);
+    validateFileExtension(file_path);
+    validateFileWritable(file_path);
+
+    try {
+      const docInfo = await this.getDocumentInfo(file_path);
+      validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
+
+      const oldText = docInfo.paragraphs[paragraph_index].text;
+
+      // Delete old paragraph content
+      const deleteRevision = await this.deleteText({
+        file_path,
+        paragraph_index,
+        text: oldText,
+        author,
+        date,
+      });
+
+      // Insert new paragraph content
+      const insertRevision = await this.insertText({
+        file_path,
+        paragraph_index,
+        text: new_text,
+        author,
+        date,
+      });
+
+      return {
+        delete: deleteRevision,
+        insert: insertRevision,
+      };
+    } catch (error) {
+      if (error instanceof DocumentError) {
+        throw error;
+      }
+      handleDocxError(error);
+    }
+  }
+
+  /**
+   * Get all revisions from a document
+   */
+  async getRevisions(filePath: string): Promise<Revision[]> {
+    validateFilePath(filePath);
+    validateFileExtension(filePath);
+
+    try {
+      const zip = await this.loadDocxZip(filePath);
+      const documentXml = await zip.file('word/document.xml')?.async('string');
+
+      if (!documentXml) {
+        return [];
+      }
+
+      const doc = await this.parseXml(documentXml);
+      const body = doc['w:document']['w:body'];
+      const wParagraphs = Array.isArray(body['w:p']) ? body['w:p'] : [body['w:p']];
+
+      const revisions: Revision[] = [];
+
+      wParagraphs.forEach((p: any, paragraphIndex: number) => {
+        if (!p) return;
+
+        const runs = p['w:r'];
+        if (!runs) return;
+
+        const runArray = Array.isArray(runs) ? runs : [runs];
+
+        runArray.forEach((run: any) => {
+          // Check for insertions
+          if (run['w:ins']) {
+            const ins = run['w:ins'];
+            let text = '';
+            if (ins['w:r'] && ins['w:r']['w:t']) {
+              const textContent = ins['w:r']['w:t'];
+              text = typeof textContent === 'string' ? textContent : textContent._;
+            }
+
+            revisions.push({
+              revision_id: ins.$['w:id'] || '',
+              revision_type: 'insert',
+              paragraph_index: paragraphIndex,
+              text,
+              author: ins.$['w:author'] || 'Unknown',
+              date: ins.$['w:date'] || new Date().toISOString(),
+            });
+          }
+
+          // Check for deletions
+          if (run['w:del']) {
+            const del = run['w:del'];
+            let text = '';
+            if (del['w:r'] && del['w:r']['w:delText']) {
+              const textContent = del['w:r']['w:delText'];
+              text = typeof textContent === 'string' ? textContent : textContent._;
+            }
+
+            revisions.push({
+              revision_id: del.$['w:id'] || '',
+              revision_type: 'delete',
+              paragraph_index: paragraphIndex,
+              text,
+              author: del.$['w:author'] || 'Unknown',
+              date: del.$['w:date'] || new Date().toISOString(),
+            });
+          }
+        });
+      });
+
+      return revisions;
     } catch (error) {
       handleDocxError(error);
     }
