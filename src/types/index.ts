@@ -36,6 +36,9 @@ export interface AddCommentInput {
   file_path: string;
   comment_text: string;
   paragraph_index: number;
+  text?: string; // Optional: specific text to comment on (word or sentence)
+  start_pos?: number; // Optional: start position in paragraph (character index)
+  end_pos?: number; // Optional: end position in paragraph (character index)
   author?: string;
   initials?: string;
 }

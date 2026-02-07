@@ -7,6 +7,8 @@ MCP (Model Context Protocol) 服务器，用于让 AI 能够操作 Word/WPS 文�
 ### 批注功能
 - ✅ 读取 .docx 文档内容和结构
 - ✅ 在指定段落添加批注
+- ✅ **在特定文本（单词/句子）上添加批注**
+- ✅ **在指定字符位置范围添加批注**
 - ✅ 列出文档中的所有批注
 
 ### 修订模式（Track Changes）
@@ -141,6 +143,8 @@ Claude: [调用 read_document 工具]
 
 ### 2. 添加批注
 
+#### 2.1 对整个段落添加批注
+
 ```
 User: 在第 3 段添加批注："需要补充数据来源"
 
@@ -149,6 +153,32 @@ Claude: [调用 add_comment 工具]
 - 批注 ID: c1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o
 - 位置：第 3 段
 - 内容：需要补充数据来源
+- 作者：AI Assistant
+```
+
+#### 2.2 对特定文字添加批注（新功能）
+
+```
+User: 在第 2 段的 "重要数据" 这几个字上添加批注："需要核实准确性"
+
+Claude: [调用 add_comment 工具，指定 text 参数]
+已成功添加批注：
+- 批注 ID: d2e3f4g5-h6i7-8j9k-0l1m-2n3o4p5q6r7s
+- 位置：第 2 段，文本 "重要数据"
+- 内容：需要核实准确性
+- 作者：AI Assistant
+```
+
+#### 2.3 对字符位置范围添加批注
+
+```
+User: 在第 1 段的第 10 到 25 个字符位置添加批注："这部分表述不清"
+
+Claude: [调用 add_comment 工具，指定 start_pos 和 end_pos]
+已成功添加批注：
+- 批注 ID: e3f4g5h6-i7j8-9k0l-1m2n-3o4p5q6r7s8t
+- 位置：第 1 段，字符位置 10-25
+- 内容：这部分表述不清
 - 作者：AI Assistant
 ```
 
@@ -264,14 +294,25 @@ Claude: [调用 list_revisions 工具]
 
 ### add_comment
 
-在指定段落添加批注。
+在指定段落或特定文本上添加批注。支持三种模式：
+1. 对整个段落添加批注（默认）
+2. 对段落中的特定文本（单词/句子）添加批注
+3. 对指定字符位置范围添加批注
 
 **输入参数**:
 - `file_path` (string, 必需): 文件的绝对路径
 - `comment_text` (string, 必需): 批注内容
 - `paragraph_index` (number, 必需): 段落索引（从 0 开始）
+- `text` (string, 可选): 要批注的具体文本（单词或句子）
+- `start_pos` (number, 可选): 字符起始位置（从 0 开始），需与 end_pos 一起使用
+- `end_pos` (number, 可选): 字符结束位置（从 0 开始），需与 start_pos 一起使用
 - `author` (string, 可选): 批注作者，默认 "AI Assistant"
 - `initials` (string, 可选): 作者缩写，默认 "AI"
+
+**使用说明**:
+- 如果提供 `text` 参数：在段落中查找该文本并添加批注
+- 如果提供 `start_pos` 和 `end_pos`：在指定字符范围添加批注
+- 如果都不提供：对整个段落添加批注
 
 **返回**:
 ```json

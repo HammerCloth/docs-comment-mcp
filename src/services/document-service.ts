@@ -159,13 +159,16 @@ export class DocumentService {
   }
 
   /**
-   * Add a comment to a specific paragraph
+   * Add a comment to a specific paragraph or text within a paragraph
    */
   async addComment(input: AddCommentInput): Promise<Comment> {
     const {
       file_path,
       comment_text,
       paragraph_index,
+      text,
+      start_pos,
+      end_pos,
       author = 'AI Assistant',
       initials = 'AI',
     } = input;
@@ -198,29 +201,240 @@ export class DocumentService {
         throw new DocumentError(`Paragraph ${paragraph_index} not found`, 'PARAGRAPH_NOT_FOUND');
       }
 
-      // Add comment range start and end
-      if (!targetParagraph['w:commentRangeStart']) {
-        targetParagraph['w:commentRangeStart'] = {
-          $: { 'w:id': commentIdNum.toString() }
-        };
-      }
-
-      if (!targetParagraph['w:commentRangeEnd']) {
-        targetParagraph['w:commentRangeEnd'] = {
-          $: { 'w:id': commentIdNum.toString() }
-        };
-      }
-
-      // Add comment reference
+      // Ensure runs array exists
       if (!targetParagraph['w:r']) {
         targetParagraph['w:r'] = [];
       }
-      const runs = Array.isArray(targetParagraph['w:r']) ? targetParagraph['w:r'] : [targetParagraph['w:r']];
-      runs.push({
-        'w:commentReference': {
-          $: { 'w:id': commentIdNum.toString() }
+      let runs = Array.isArray(targetParagraph['w:r']) ? targetParagraph['w:r'] : [targetParagraph['w:r']];
+
+      // Determine comment range based on input parameters
+      let startRunIndex = 0;
+      let endRunIndex = runs.length;
+      let startCharOffset = 0;
+      let endCharOffset = 0;
+
+      if (text || (start_pos !== undefined && end_pos !== undefined)) {
+        // Find the target text or position range
+        let currentPos = 0;
+        let targetStart = start_pos;
+        let targetEnd = end_pos;
+
+        // If text is provided, find its position
+        if (text) {
+          const paragraphText = docInfo.paragraphs[paragraph_index].text;
+          const textIndex = paragraphText.indexOf(text);
+          if (textIndex === -1) {
+            throw new DocumentError(
+              `Text "${text}" not found in paragraph ${paragraph_index}`,
+              'TEXT_NOT_FOUND'
+            );
+          }
+          targetStart = textIndex;
+          targetEnd = textIndex + text.length;
         }
-      });
+
+        // Validate position range
+        if (targetStart === undefined || targetEnd === undefined) {
+          throw new DocumentError(
+            'Either text or both start_pos and end_pos must be provided',
+            'INVALID_INPUT'
+          );
+        }
+
+        if (targetStart < 0 || targetEnd <= targetStart) {
+          throw new DocumentError(
+            'Invalid position range: start_pos must be >= 0 and end_pos must be > start_pos',
+            'INVALID_RANGE'
+          );
+        }
+
+        // Find the runs that contain the target range
+        let foundStart = false;
+        let foundEnd = false;
+
+        for (let i = 0; i < runs.length; i++) {
+          const run = runs[i];
+          if (!run || !run['w:t']) continue;
+
+          const textContent = typeof run['w:t'] === 'string' ? run['w:t'] : run['w:t']._;
+          if (!textContent) continue;
+
+          const runLength = textContent.length;
+          const runStart = currentPos;
+          const runEnd = currentPos + runLength;
+
+          // Check if this run contains the start position
+          if (!foundStart && targetStart >= runStart && targetStart < runEnd) {
+            startRunIndex = i;
+            startCharOffset = targetStart - runStart;
+            foundStart = true;
+          }
+
+          // Check if this run contains the end position
+          if (!foundEnd && targetEnd > runStart && targetEnd <= runEnd) {
+            endRunIndex = i;
+            endCharOffset = targetEnd - runStart;
+            foundEnd = true;
+          }
+
+          currentPos += runLength;
+
+          if (foundStart && foundEnd) break;
+        }
+
+        if (!foundStart || !foundEnd) {
+          throw new DocumentError(
+            `Position range ${targetStart}-${targetEnd} not found in paragraph ${paragraph_index}`,
+            'RANGE_NOT_FOUND'
+          );
+        }
+
+        // Split runs if necessary to insert comment markers at exact positions
+        const newRuns: any[] = [];
+
+        for (let i = 0; i < runs.length; i++) {
+          const run = runs[i];
+
+          if (i === startRunIndex && startCharOffset > 0) {
+            // Split the start run
+            const textContent = typeof run['w:t'] === 'string' ? run['w:t'] : run['w:t']._;
+            const beforeText = textContent.substring(0, startCharOffset);
+            const afterText = textContent.substring(startCharOffset);
+
+            // Add the part before the comment
+            if (beforeText) {
+              newRuns.push({
+                'w:r': {
+                  'w:t': beforeText,
+                },
+              });
+            }
+
+            // Add comment range start
+            newRuns.push({
+              'w:commentRangeStart': {
+                $: { 'w:id': commentIdNum.toString() },
+              },
+            });
+
+            // Add the part after the split (within comment range)
+            if (afterText) {
+              if (i === endRunIndex) {
+                // This run contains both start and end
+                const commentText = afterText.substring(0, endCharOffset - startCharOffset);
+                const afterCommentText = afterText.substring(endCharOffset - startCharOffset);
+
+                if (commentText) {
+                  newRuns.push({
+                    'w:r': {
+                      'w:t': commentText,
+                    },
+                  });
+                }
+
+                // Add comment range end
+                newRuns.push({
+                  'w:commentRangeEnd': {
+                    $: { 'w:id': commentIdNum.toString() },
+                  },
+                });
+
+                // Add comment reference
+                newRuns.push({
+                  'w:r': {
+                    'w:commentReference': {
+                      $: { 'w:id': commentIdNum.toString() },
+                    },
+                  },
+                });
+
+                if (afterCommentText) {
+                  newRuns.push({
+                    'w:r': {
+                      'w:t': afterCommentText,
+                    },
+                  });
+                }
+              } else {
+                newRuns.push({
+                  'w:r': {
+                    'w:t': afterText,
+                  },
+                });
+              }
+            }
+          } else if (i === endRunIndex && i !== startRunIndex) {
+            // Split the end run
+            const textContent = typeof run['w:t'] === 'string' ? run['w:t'] : run['w:t']._;
+            const beforeText = textContent.substring(0, endCharOffset);
+            const afterText = textContent.substring(endCharOffset);
+
+            if (beforeText) {
+              newRuns.push({
+                'w:r': {
+                  'w:t': beforeText,
+                },
+              });
+            }
+
+            // Add comment range end
+            newRuns.push({
+              'w:commentRangeEnd': {
+                $: { 'w:id': commentIdNum.toString() },
+              },
+            });
+
+            // Add comment reference
+            newRuns.push({
+              'w:r': {
+                'w:commentReference': {
+                  $: { 'w:id': commentIdNum.toString() },
+                },
+              },
+            });
+
+            if (afterText) {
+              newRuns.push({
+                'w:r': {
+                  'w:t': afterText,
+                },
+              });
+            }
+          } else if (i > startRunIndex && i < endRunIndex) {
+            // Runs between start and end are within the comment range
+            newRuns.push(run);
+          } else if (i < startRunIndex || i > endRunIndex) {
+            // Runs outside the comment range
+            newRuns.push(run);
+          }
+        }
+
+        runs = newRuns;
+      } else {
+        // No specific text or position - comment on entire paragraph (original behavior)
+        // Add comment range start at the beginning
+        runs.unshift({
+          'w:commentRangeStart': {
+            $: { 'w:id': commentIdNum.toString() },
+          },
+        });
+
+        // Add comment range end and reference at the end
+        runs.push({
+          'w:commentRangeEnd': {
+            $: { 'w:id': commentIdNum.toString() },
+          },
+        });
+
+        runs.push({
+          'w:r': {
+            'w:commentReference': {
+              $: { 'w:id': commentIdNum.toString() },
+            },
+          },
+        });
+      }
+
       targetParagraph['w:r'] = runs;
 
       // Save modified document.xml

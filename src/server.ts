@@ -62,7 +62,7 @@ export class DocsCommentServer {
         {
           name: 'add_comment',
           description:
-            'Add a comment to a specific paragraph in a .docx document',
+            'Add a comment to a specific text, word, sentence, or entire paragraph in a .docx document. Supports three modes: 1) Comment on specific text by providing the "text" parameter, 2) Comment on a character range by providing "start_pos" and "end_pos", 3) Comment on entire paragraph (default behavior)',
           inputSchema: {
             type: 'object',
             properties: {
@@ -77,6 +77,18 @@ export class DocsCommentServer {
               paragraph_index: {
                 type: 'number',
                 description: 'Zero-based index of the target paragraph',
+              },
+              text: {
+                type: 'string',
+                description: 'Optional: Specific text (word or sentence) to comment on. The comment will be attached to this exact text within the paragraph.',
+              },
+              start_pos: {
+                type: 'number',
+                description: 'Optional: Start character position (0-based) in the paragraph. Use with end_pos to comment on a specific range.',
+              },
+              end_pos: {
+                type: 'number',
+                description: 'Optional: End character position (0-based) in the paragraph. Use with start_pos to comment on a specific range.',
               },
               author: {
                 type: 'string',
