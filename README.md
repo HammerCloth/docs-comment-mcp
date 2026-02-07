@@ -21,11 +21,13 @@ MCP (Model Context Protocol) 服务器，用于让 AI 能够操作 Word/WPS 文�
 
 ```bash
 # 克隆仓库
-git clone <repository-url>
+git clone https://github.com/HammerCloth/docs-comment-mcp.git
 cd docs-comment-mcp
 
 # 安装依赖
 npm install
+# 如果网络问题，可使用淘宝镜像：
+# npm install --registry=https://registry.npmmirror.com
 
 # 构建项目
 npm run build
@@ -273,4 +275,9 @@ Apache-2.0
 
 ## 支持
 
-如有问题，请提交 Issue 或联系维护者。
+如有问题，请在 GitHub 提交 Issue：https://github.com/HammerCloth/docs-comment-mcp/issues
+
+## 仓库
+
+- GitHub: https://github.com/HammerCloth/docs-comment-mcp
+- 作者: HammerCloth
