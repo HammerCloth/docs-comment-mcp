@@ -43,7 +43,7 @@ MCP (Model Context Protocol) 服务器，用于让 AI 能够操作 Word/WPS 文�
 
 ### 方式一：通过 npx 直接使用（推荐）
 
-无需安装，直接在 Claude Desktop 配置中使用：
+无需安装，直接在 Claude Desktop 配置中使用，**自动使用 npm 最新版本**：
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -53,11 +53,13 @@ MCP (Model Context Protocol) 服务器，用于让 AI 能够操作 Word/WPS 文�
   "mcpServers": {
     "docs-comment": {
       "command": "npx",
-      "args": ["-y", "docs-comment-mcp"]
+      "args": ["-y", "docs-comment-mcp@latest"]
     }
   }
 }
 ```
+
+> 💡 使用 `@latest` 标签确保始终使用 npm 上的最新版本
 
 ### 方式二：全局安装
 
@@ -105,6 +107,21 @@ npm install -g .
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
+**推荐配置（使用 npx + 最新版本）**：
+
+```json
+{
+  "mcpServers": {
+    "docs-comment": {
+      "command": "npx",
+      "args": ["-y", "docs-comment-mcp@latest"]
+    }
+  }
+}
+```
+
+**从源码运行**：
+
 ```json
 {
   "mcpServers": {
@@ -116,7 +133,7 @@ npm install -g .
 }
 ```
 
-如果全局安装，可以简化为：
+**全局安装后**：
 
 ```json
 {
