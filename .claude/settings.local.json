@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(chmod:*)",
+      "Bash(node -e \"const p=require\\(''path''\\).join\\(require\\(''os''\\).homedir\\(\\),''.claude'',''hud'',''omc-hud.mjs''\\);console.log\\(JSON.stringify\\(p\\)\\)\")",
+      "Bash(echo:*)"
+    ]
+  }
+}
