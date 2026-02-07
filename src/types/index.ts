@@ -92,6 +92,26 @@ export interface ListRevisionsInput {
   file_path: string;
 }
 
+export interface SuggestRevisionInput {
+  file_path: string;
+  paragraph_index: number;
+  original_text: string;
+  suggested_text: string;
+  reason: string;
+  apply_immediately?: boolean;
+  author?: string;
+  date?: string;
+}
+
+export interface RevisionSuggestion {
+  paragraph_index: number;
+  original_text: string;
+  suggested_text: string;
+  reason: string;
+  applied: boolean;
+  revisions?: Revision[];
+}
+
 // Tool response type
 export interface ToolResponse<T> {
   success: boolean;

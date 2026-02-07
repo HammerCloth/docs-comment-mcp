@@ -17,6 +17,8 @@ import {
   DeleteTextInput,
   ReplaceTextInput,
   ModifyParagraphInput,
+  SuggestRevisionInput,
+  RevisionSuggestion,
   DocumentError,
 } from '../types/index.js';
 import {
@@ -27,7 +29,7 @@ import {
   validateFileWritable,
 } from '../utils/validation.js';
 import { handleFileError, handleDocxError } from '../utils/error-handler.js';
-import { calculatePositionDiff, DiffOperation } from '../utils/text-diff.js';
+import { calculateWordDiff, calculatePositionDiff, DiffOperation } from '../utils/text-diff.js';
 
 export class DocumentService {
   /**
@@ -575,7 +577,7 @@ export class DocumentService {
   }
 
   /**
-   * Replace text with track changes using position-based character diff
+   * Replace text with track changes using word-level diff (more natural, human-like revisions)
    */
   async replaceText(input: ReplaceTextInput): Promise<Revision[]> {
     const {
@@ -595,8 +597,9 @@ export class DocumentService {
       const docInfo = await this.getDocumentInfo(file_path);
       validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
 
-      // Calculate position-based character diff
-      const diffOps = calculatePositionDiff(old_text, new_text);
+      // Use word-level diff for more natural, human-like revisions
+      // This groups changes by words/phrases rather than individual characters
+      const diffOps = calculateWordDiff(old_text, new_text);
 
       const zip = await this.loadDocxZip(file_path);
       const documentXml = await zip.file('word/document.xml')!.async('string');
@@ -691,7 +694,7 @@ export class DocumentService {
   }
 
   /**
-   * Modify entire paragraph with track changes using position-based character diff
+   * Modify entire paragraph with track changes using word-level diff
    */
   async modifyParagraph(input: ModifyParagraphInput): Promise<Revision[]> {
     const {
@@ -712,7 +715,7 @@ export class DocumentService {
 
       const oldText = docInfo.paragraphs[paragraph_index].text;
 
-      // Use replaceText with position-based character diff
+      // Use replaceText with word-level diff for natural revisions
       return await this.replaceText({
         file_path,
         paragraph_index,
@@ -801,6 +804,80 @@ export class DocumentService {
 
       return revisions;
     } catch (error) {
+      handleDocxError(error);
+    }
+  }
+
+  /**
+   * Suggest a revision for a specific text segment
+   * AI identifies what to change, where, and why - mimicking human review
+   */
+  async suggestRevision(input: SuggestRevisionInput): Promise<RevisionSuggestion> {
+    const {
+      file_path,
+      paragraph_index,
+      original_text,
+      suggested_text,
+      reason,
+      apply_immediately = false,
+      author = 'AI Assistant',
+      date = new Date().toISOString(),
+    } = input;
+
+    validateFilePath(file_path);
+    validateFileExtension(file_path);
+
+    try {
+      const docInfo = await this.getDocumentInfo(file_path);
+      validateParagraphIndex(paragraph_index, docInfo.total_paragraphs);
+
+      const paragraphText = docInfo.paragraphs[paragraph_index].text;
+
+      // Verify the original text exists in the paragraph
+      if (!paragraphText.includes(original_text)) {
+        throw new DocumentError(
+          `Original text "${original_text}" not found in paragraph ${paragraph_index}`,
+          'TEXT_NOT_FOUND'
+        );
+      }
+
+      // If apply_immediately is true, apply the revision
+      if (apply_immediately) {
+        if (file_path) {
+          validateFileWritable(file_path);
+        }
+
+        const revisions = await this.replaceText({
+          file_path,
+          paragraph_index,
+          old_text: original_text,
+          new_text: suggested_text,
+          author,
+          date,
+        });
+
+        return {
+          paragraph_index,
+          original_text,
+          suggested_text,
+          reason,
+          applied: true,
+          revisions,
+        };
+      }
+
+      // Otherwise, just return the suggestion
+      return {
+        paragraph_index,
+        original_text,
+        suggested_text,
+        reason,
+        applied: false,
+      };
+    } catch (error) {
+      if (error instanceof DocumentError) {
+        throw error;
+      }
       handleDocxError(error);
     }
   }

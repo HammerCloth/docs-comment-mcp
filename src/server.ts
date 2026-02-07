@@ -16,6 +16,7 @@ import { deleteTextTool } from './tools/delete-text.js';
 import { replaceTextTool } from './tools/replace-text.js';
 import { modifyParagraphTool } from './tools/modify-paragraph.js';
 import { listRevisionsTool } from './tools/list-revisions.js';
+import { suggestRevisionTool } from './tools/suggest-revision.js';
 import { DocumentService } from './services/document-service.js';
 
 export class DocsCommentServer {
@@ -108,6 +109,7 @@ export class DocsCommentServer {
         replaceTextTool,
         modifyParagraphTool,
         listRevisionsTool,
+        suggestRevisionTool,
       ],
     }));
 
@@ -210,6 +212,20 @@ export class DocsCommentServer {
                   type: 'text',
                   text: JSON.stringify(
                     await this.documentService.getRevisions((args as any).file_path),
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+
+          case 'suggest_revision':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    await this.documentService.suggestRevision(args as any),
                     null,
                     2
                   ),
